@@ -110,7 +110,7 @@
         <h2>What happens every minute</h2>
         <p class="section-lede">A cron tick runs this loop for each zone you manage. Everything is configurable in the app and takes effect on the next tick.</p>
         <ol class="pipeline">
-          <li><h3>Poll</h3><p>Read the last two minutes from Cloudflare's GraphQL Analytics API, grouped by IP, ASN, user agent, path, and status. Works on the Free plan with no Logpush.</p></li>
+          <li><h3>Poll</h3><p>Read the last two minutes from Cloudflare's GraphQL Analytics API, grouped by IP, user agent, path, and status, plus network on plans that include it. Works on the Free plan with no Logpush.</p></li>
           <li><h3>Baseline</h3><p>Compare against a rolling baseline for this hour of the week. A spike starts at 3x baseline and at least 500 requests per minute.</p></li>
           <li><h3>Cluster</h3><p>Group the spike by IP, /24, ASN, user agent, and JA4 on Enterprise. Measure each group: rate, share of the spike, paths, error mix, asset ratio.</p></li>
           <li><h3>Filter</h3><p>Drop your never-block list, verified bots, tiny clusters, and anything already handled.</p></li>
@@ -174,7 +174,7 @@
         <ul class="rails">
           <li><strong>Shadow mode first.</strong> New zones log what Spikeward would do for 24 hours. You review, then switch to enforce.</li>
           <li><strong>Everything expires.</strong> Every block and challenge has a timer. Repeat offenders get double the time, up to 7 days.</li>
-          <li><strong>Grey-zone alerts.</strong> Verdicts between 0.70 and 0.95 only challenge, and send you approve and reject links in Slack or email.</li>
+          <li><strong>Grey-zone alerts.</strong> Verdicts between 0.70 and 0.95 only challenge, and send you approve and reject links in Slack or Discord.</li>
           <li><strong>Rate cap.</strong> More than 50 new actions in an hour pauses enforcement and alerts you.</li>
           <li><strong>Never-block list.</strong> IPs, networks, user agents, and paths you trust. Verified bots are always excluded.</li>
           <li><strong>Kill switch.</strong> One button turns off every Spikeward rule on every zone.</li>
@@ -190,9 +190,9 @@
         <p class="section-lede">The Deploy to Cloudflare button forks the repo, creates the database and cache, and asks you for one secret. The rest happens in Spikeward's own setup screen.</p>
         <ol class="steps">
           <li><strong>Deploy.</strong> Click the button and paste a long random secret.</li>
-          <li><strong>Claim.</strong> Open your new app, enter the secret, and create an admin passkey.</li>
-          <li><strong>Connect Cloudflare.</strong> Paste a least-privilege API token. Spikeward refuses tokens with more access than it needs.</li>
-          <li><strong>Connect Jev.</strong> Paste a TypeSafe key, or route through OpenRouter or Vercel AI Gateway.</li>
+          <li><strong>Claim.</strong> Open your new app, enter the secret, and create an admin login.</li>
+          <li><strong>Connect Cloudflare.</strong> Paste an API token with the four permissions the setup screen lists, and nothing more.</li>
+          <li><strong>Connect Jev.</strong> Paste a TypeSafe API key.</li>
           <li><strong>Pick zones.</strong> Spikeward detects each zone's plan and shows what's available.</li>
           <li><strong>Watch, then enforce.</strong> Review a day of shadow-mode decisions and flip the switch.</li>
         </ol>
@@ -208,13 +208,14 @@
     <section class="section" id="plans">
       <div class="wrap">
         <h2>Works on the Free plan</h2>
-        <p class="section-lede">The core loop runs on every Cloudflare plan. Higher plans add sharper signals. The app hides what your zone can't use.</p>
+        <p class="section-lede">The core loop runs on every Cloudflare plan. Higher plans add sharper signals. Spikeward asks Cloudflare what each zone can read and uses exactly that.</p>
         <div class="table-scroll">
           <table class="plans">
             <thead><tr><th scope="col">Capability</th><th scope="col">Free</th><th scope="col">Pro</th><th scope="col">Business</th><th scope="col">Enterprise</th></tr></thead>
             <tbody>
               <tr><th scope="row">Spike detection and clustering</th><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
               <tr><th scope="row">IP blocks and managed challenges</th><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+              <tr><th scope="row">Grouping by network (ASN) and hosting-network signal</th><td class="no">No</td><td>Checked per zone</td><td>Checked per zone</td><td>Checked per zone</td></tr>
               <tr><th scope="row">Custom IP lists per account</th><td>1</td><td>10</td><td>10</td><td>1,000</td></tr>
               <tr><th scope="row">Bot score and JA4 as signals</th><td class="no">No</td><td class="no">No</td><td class="no">No</td><td class="yes">Yes, with Bot Management</td></tr>
               <tr><th scope="row">Rate limits keyed on JA4</th><td class="no">No</td><td class="no">No</td><td class="no">No</td><td class="yes">Yes, with Bot Management</td></tr>
@@ -236,8 +237,8 @@
         <dl class="costs">
           <div><dt>Workers Paid</dt><dd>$5 / month</dd></div>
           <div><dt>D1 and KV</dt><dd>Free tier</dd></div>
-          <div><dt>Jev, a typical spike</dt><dd>~$0.03</dd></div>
-          <div><dt>Jev, a very bad day</dt><dd>~$2.50</dd></div>
+          <div><dt>Jev, a typical spike</dt><dd>Under $0.01</dd></div>
+          <div><dt>Jev, a very bad day</dt><dd>~$0.25</dd></div>
         </dl>
       </div>
     </section>
