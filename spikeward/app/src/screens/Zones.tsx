@@ -6,6 +6,7 @@ import { ZonePicker } from "./ZonePicker";
 
 const MODES: { id: Mode; label: string; help: string }[] = [
   { id: "off", label: "Off", help: "Spikeward does nothing on this zone." },
+  { id: "watch", label: "Watch", help: "Emails you about spikes and what it would do. Never creates or changes Cloudflare rules." },
   { id: "shadow", label: "Shadow", help: "Logs what it would do. Nothing is applied." },
   { id: "enforce", label: "Enforce", help: "Applies challenges and blocks." },
 ];
@@ -104,7 +105,7 @@ export function Zones() {
   return (
     <Page
       title="Zones"
-      lede="Each zone runs in one of three modes. New zones start in shadow: Spikeward logs what it would do for 24 hours, applies nothing, and you switch to enforce when the decisions look right."
+      lede="Each zone runs in one of four modes. Watch only emails you and never touches the zone's firewall. Shadow logs what Spikeward would do and applies nothing. Enforce applies challenges and blocks."
       actions={<Btn onClick={() => setAdding(!adding)} aria-expanded={adding}>{adding ? "Done adding zones" : "Add a zone"}</Btn>}
     >
       {adding && (

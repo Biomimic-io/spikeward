@@ -59,7 +59,11 @@ export const settingsSchema = z.object({
   alerts: z
     .object({
       webhookUrl: z.string().url().or(z.literal("")).default(""),
+      // Sent through Cloudflare Email Routing: free, to addresses verified in your account.
+      emailTo: z.string().email().or(z.literal("")).default(""),
+      emailFrom: z.string().email().or(z.literal("")).default(""),
       onSpike: z.boolean().default(true),
+      onSpikeEnd: z.boolean().default(true),
       onGrey: z.boolean().default(true),
       onPause: z.boolean().default(true),
     })

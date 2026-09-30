@@ -202,6 +202,7 @@ export function SettingsPage({ section, state, refresh }: { section: Section; st
             overridden={overridden}
             reload={reload}
           />
+          {section === "alerts" && !zone && <AlertTestCard />}
           {section === "jev" && (
             <>
               <CustomQuestions key={`cq-${zone}-${version}`} zone={zone} initial={data.data.settings.jev.customQuestions} tagged={overridden.customQuestions !== undefined} reload={reload} />
@@ -298,6 +299,24 @@ function CustomQuestions({ zone, initial, tagged, reload }: { zone: string; init
 }
 
 // Test against last spike
+
+function AlertTestCard() {
+  const { busy, error, run } = useAsync();
+  const [res, setRes] = useState<{ webhook: string; email: string } | null>(null);
+  const line = (name: string, v: string) =>
+    v === "sent" ? <p class="ok-text">{name}: sent. Check that it arrived.</p> : v === "off" ? null : <p class="bad-text">{name}: {v}</p>;
+  return (
+    <div class="card">
+      <div>
+        <h2>Send a test alert</h2>
+        <p class="help">Save your alert settings first. Sends one test message to each channel you've set up.</p>
+      </div>
+      <div><Btn busy={busy} busyText="Sending…" onClick={() => run(async () => setRes(await post("/alerts/test")))}>Send test alert</Btn></div>
+      <ErrorText error={error} />
+      {res && <div role="status">{line("Email", res.email)}{line("Webhook", res.webhook)}</div>}
+    </div>
+  );
+}
 
 function TestCard() {
   const { busy, error, run } = useAsync();

@@ -20,8 +20,39 @@ copy). Then open your Worker's URL and follow the setup screen:
 1. **Claim** the install with `SPIKEWARD_SECRET` and create an admin login.
 2. **Connect Cloudflare** with an API token (permissions below).
 3. **Connect Jev** with a TypeSafe API key.
-4. **Pick zones.** Each starts in shadow mode: Spikeward logs what it would do and applies nothing.
+4. **Pick zones**, in shadow or watch mode (below).
 5. After a day of shadow decisions, review the Decisions screen and switch the zone to enforce.
+
+### Modes
+
+Each zone runs in one of four modes, switchable any time on the Zones screen:
+
+| Mode | What Spikeward does | Token needs |
+| --- | --- | --- |
+| Off | Nothing. | — |
+| Watch | Detects spikes, asks Jev about them, and emails you. Never creates or changes Cloudflare rules. | Zone: Read, Analytics: Read |
+| Shadow | Everything watch does, plus creates its rules on the zone, disabled, and logs what it would apply. | All four permissions below |
+| Enforce | Applies challenges and blocks. | All four permissions below |
+
+Watch mode is for when you want to know about bot spikes without anything acting on its own.
+
+### Email alerts
+
+Spikeward emails through Cloudflare Email Routing, which is free on every plan for addresses
+you verify in your own account:
+
+1. In the Cloudflare dashboard, pick a domain and turn on **Email → Email Routing**. This sets
+   the domain's MX records, so use a domain that doesn't already receive email elsewhere
+   (for example, Google Workspace).
+2. Under **Destination addresses**, add the inbox you want alerts in and click the link in the
+   verification email.
+3. In Spikeward, open **Settings → Alerts**: set **Email alerts to** that inbox and **Send email
+   from** any address on the Email Routing domain, such as `spikeward@yourdomain.com`. Save, then
+   click **Send test alert**.
+
+You get one email when a spike starts, listing each suspicious cluster with Jev's verdict and
+what Spikeward did or would do, and one when it ends. Slack and Discord webhooks work alongside
+or instead of email.
 
 If the deploy form shows `access.api.error.conflict: a cloudflare connection already exists`,
 uncheck **Create private Git repository** and deploy again. This happens when your Cloudflare
@@ -37,12 +68,13 @@ Spikeward should manage:
 
 | Scope | Permission | Used for |
 | --- | --- | --- |
-| Zone | Zone: Read | Listing zones and detecting their plan |
-| Zone | Analytics: Read | Reading traffic from the GraphQL Analytics API |
+| Zone | Zone: Read | Listing zones and detecting their plan (all modes) |
+| Zone | Analytics: Read | Reading traffic from the GraphQL Analytics API (all modes) |
 | Zone | Zone WAF: Edit | Creating and updating Spikeward's custom and rate limiting rules |
 | Account | Account Filter Lists: Edit | The `spikeward_blocks` IP list |
 
-Don't grant more. Spikeward doesn't need DNS, settings, or Workers permissions.
+Watch mode needs only the first two. Don't grant more than you use: Spikeward never needs DNS,
+settings, or Workers permissions.
 
 ## How it works
 
@@ -102,7 +134,8 @@ the Preact admin app, built into `dist/` and served as static assets. See
 ## Differences from the plan (v0.1)
 
 - **Logins** use passwords (PBKDF2); passkeys aren't built yet.
-- **Alerts** go to a Slack- or Discord-compatible webhook. Email isn't built.
+- **Alerts** go by email through Cloudflare Email Routing (verified addresses only) and to a
+  Slack- or Discord-compatible webhook. There's no general email provider integration.
 - **Jev provider:** TypeSafe's API directly. The base URL is configurable for a compatible gateway,
   but OpenRouter and Vercel AI Gateway adapters aren't built.
 - **Token scope** isn't checked automatically: reading a token's permissions needs a permission

@@ -73,7 +73,7 @@ export interface RpmPoint {
   baseline: number | null;
 }
 
-export type Mode = "off" | "shadow" | "enforce";
+export type Mode = "off" | "watch" | "shadow" | "enforce";
 
 export interface Zone {
   id: string;
@@ -189,7 +189,7 @@ export interface Settings {
     pricePerMillionTokens: number;
     customQuestions: CustomQuestion[];
   };
-  alerts: { webhookUrl: string; onSpike: boolean; onGrey: boolean; onPause: boolean };
+  alerts: { webhookUrl: string; emailTo: string; emailFrom: string; onSpikeEnd: boolean; onSpike: boolean; onGrey: boolean; onPause: boolean };
   retentionDays: number;
 }
 

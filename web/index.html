@@ -173,8 +173,9 @@
         <h3 class="rails-title">Safety rails, on by default</h3>
         <ul class="rails">
           <li><strong>Shadow mode first.</strong> New zones log what Spikeward would do for 24 hours. You review, then switch to enforce.</li>
+          <li><strong>Or just watch.</strong> Watch mode emails you when a spike starts, with what it's made of, and never touches your firewall. A read-only token is enough.</li>
           <li><strong>Everything expires.</strong> Every block and challenge has a timer. Repeat offenders get double the time, up to 7 days.</li>
-          <li><strong>Grey-zone alerts.</strong> Verdicts between 0.70 and 0.95 only challenge, and send you approve and reject links in Slack or Discord.</li>
+          <li><strong>Grey-zone alerts.</strong> Verdicts between 0.70 and 0.95 only challenge, and send you approve and reject links by email, Slack, or Discord.</li>
           <li><strong>Rate cap.</strong> More than 50 new actions in an hour pauses enforcement and alerts you.</li>
           <li><strong>Never-block list.</strong> IPs, networks, user agents, and paths you trust. Verified bots are always excluded.</li>
           <li><strong>Kill switch.</strong> One button turns off every Spikeward rule on every zone.</li>
@@ -264,6 +265,10 @@
         <details>
           <summary>Does Spikeward slow down my site?</summary>
           <p>No. It never sits in the request path. It reads analytics on a one-minute schedule and writes WAF rules, which Cloudflare's edge already evaluates.</p>
+        </details>
+        <details>
+          <summary>Can it just tell me, without changing anything?</summary>
+          <p>Yes. Put a zone in watch mode and Spikeward only emails you (or posts to Slack or Discord) when a spike starts and ends, saying what the traffic is and what it would do. It never creates or changes Cloudflare rules, and it works with a read-only API token.</p>
         </details>
         <details>
           <summary>How fast does it react?</summary>

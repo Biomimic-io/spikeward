@@ -8,6 +8,7 @@ import { Cloudflare, CfError } from "../cf/client";
 import { credentialStatus, loadCredential, saveCredential } from "../credentials";
 import { ask, JevError } from "../jev/client";
 import { loadSettings, saveSettings, settingsSchema } from "../settings";
+import { sendAlert } from "../alerts";
 import { cloudflareClient, deprovisionZone, parseRuleIds, provisionZone, sync } from "../loop/enforce";
 import { buildQuestions, toVerdict } from "../loop/judge";
 import { decide } from "../loop/policy";
@@ -202,27 +203,47 @@ api.get("/zones", async (c) => {
 });
 
 api.post("/zones", async (c) => {
-  const b = await body(c, z.object({ zoneId: z.string().min(1) }));
+  const b = await body(c, z.object({ zoneId: z.string().min(1), mode: z.enum(["watch", "shadow"]).default("shadow") }));
   const cf = await cloudflareClient(c.env);
   if (!cf) return c.json({ error: "Connect Cloudflare first." }, 400);
   const cz = await cf.getZone(b.zoneId);
   await c.env.DB.prepare(
-    "INSERT OR IGNORE INTO zones (zone_id, name, account_id, plan, mode, shadow_since, created_at) VALUES (?, ?, ?, ?, 'shadow', ?, ?)",
-  ).bind(cz.id, cz.name, cz.account.id, cz.plan.legacy_id, now(), now()).run();
+    "INSERT OR IGNORE INTO zones (zone_id, name, account_id, plan, mode, shadow_since, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+  ).bind(cz.id, cz.name, cz.account.id, cz.plan.legacy_id, b.mode, b.mode === "shadow" ? now() : null, now()).run();
+  // Watch mode never touches the zone's firewall, so it works with a read-only token.
+  if (b.mode === "watch") return c.json({ ok: true });
   const zone = (await c.env.DB.prepare("SELECT * FROM zones WHERE zone_id = ?").bind(cz.id).first<ZoneRow>())!;
-  try {
-    await provisionZone(c.env, cf, zone);
-  } catch (e) {
-    const msg = (e as Error).message;
-    await c.env.DB.prepare("UPDATE zones SET last_error = ? WHERE zone_id = ?").bind(`Setup: ${msg}`, cz.id).run();
-    return c.json({ error: `Couldn't create Spikeward's rules on ${cz.name}. ${msg}` }, 502);
-  }
-  return c.json({ ok: true });
+  const err = await ensureProvisioned(c.env, cf, zone);
+  return err ? c.json({ error: err }, 502) : c.json({ ok: true });
 });
 
+/** Creates the zone's rules if it doesn't have them yet. Returns a readable error, or null. */
+async function ensureProvisioned(env: AppEnv["Bindings"], cf: Cloudflare, zone: ZoneRow): Promise<string | null> {
+  if (parseRuleIds(zone).block) return null;
+  try {
+    await provisionZone(env, cf, zone);
+    await env.DB.prepare("UPDATE zones SET last_error = NULL WHERE zone_id = ? AND last_error LIKE 'Setup:%'").bind(zone.zone_id).run();
+    return null;
+  } catch (e) {
+    const msg = (e as Error).message;
+    await env.DB.prepare("UPDATE zones SET last_error = ? WHERE zone_id = ?").bind(`Setup: ${msg}`, zone.zone_id).run();
+    const perm = e instanceof CfError && (e.status === 401 || e.status === 403)
+      ? " The API token needs Zone WAF: Edit and Account Filter Lists: Edit for shadow and enforce modes; watch mode needs only read access."
+      : "";
+    return `Couldn't create Spikeward's rules on ${zone.name}.${perm} (${msg})`;
+  }
+}
+
 api.patch("/zones/:id", async (c) => {
-  const b = await body(c, z.object({ mode: z.enum(["off", "shadow", "enforce"]) }));
+  const b = await body(c, z.object({ mode: z.enum(["off", "watch", "shadow", "enforce"]) }));
   const id = c.req.param("id");
+  if (b.mode === "shadow" || b.mode === "enforce") {
+    const zone = await c.env.DB.prepare("SELECT * FROM zones WHERE zone_id = ?").bind(id).first<ZoneRow>();
+    const cf = await cloudflareClient(c.env);
+    if (!zone || !cf) return c.json({ error: "Zone not found, or Cloudflare isn't connected." }, 404);
+    const err = await ensureProvisioned(c.env, cf, zone);
+    if (err) return c.json({ error: err }, 502);
+  }
   await c.env.DB.prepare(
     "UPDATE zones SET mode = ?, shadow_since = CASE WHEN ? = 'shadow' THEN ? ELSE shadow_since END, paused_until = CASE WHEN ? = 'enforce' THEN NULL ELSE paused_until END WHERE zone_id = ?",
   ).bind(b.mode, b.mode, now(), b.mode, id).run();
@@ -334,6 +355,19 @@ api.post("/killswitch", async (c) => {
   await setMeta(c.env, "kill", b.on ? "1" : "0");
   await sync(c.env);
   return c.json({ ok: true, kill: b.on });
+});
+
+api.post("/alerts/test", async (c) => {
+  const settings = await loadSettings(c.env);
+  const link = new URL("/live", c.req.url).toString();
+  const result = await sendAlert(c.env, settings, {
+    subject: "Spikeward test alert",
+    text: `This is a test from your Spikeward install. Alerts like this arrive when a traffic spike starts and ends, and when Spikeward needs your review.\n\nOpen Spikeward: ${link}`,
+  });
+  if (result.webhook === "off" && result.email === "off") {
+    return c.json({ error: "No alert channel is set up. Add an email address or a webhook URL and save first." }, 400);
+  }
+  return c.json(result);
 });
 
 // Settings and never-block list

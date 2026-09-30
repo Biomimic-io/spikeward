@@ -39,7 +39,7 @@ export interface ZoneRow {
   name: string;
   account_id: string;
   plan: string;
-  mode: "off" | "shadow" | "enforce";
+  mode: "off" | "watch" | "shadow" | "enforce";
   rule_ids: string;
   shadow_since: number | null;
   paused_until: number | null;

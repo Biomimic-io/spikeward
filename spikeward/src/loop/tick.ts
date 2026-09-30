@@ -4,7 +4,7 @@ import { loadCredential } from "../credentials";
 import { activeActions, getMeta, listZones, now, tryLock, unlock, type ClusterKind, type Mechanism, type ZoneRow } from "../db";
 import type { JevConfig } from "../jev/client";
 import { loadSettings, type Settings } from "../settings";
-import { reviewLinks, sendAlert } from "../alerts";
+import { appLink, reviewLinks, sendAlert, type Alert } from "../alerts";
 import { expectedRpm, GLOBAL_ALPHA, hourOfWeek, HOW_ALPHA, isSpike, updateEwma, type Ewma } from "./baseline";
 import { buildClusters, type Cluster } from "./cluster";
 import { cloudflareClient, sync } from "./enforce";
@@ -68,13 +68,12 @@ export async function tickZone(
     await recordRpm(env, zone.zone_id, result, expected);
 
     let state = spike;
+    let started = false;
     if (spiking && !state) {
       const row = await env.DB.prepare("INSERT INTO spikes (zone_id, started_at, peak_rpm, baseline_rpm) VALUES (?, ?, ?, ?) RETURNING id")
         .bind(zone.zone_id, now(), result.rpm, expected ?? 0).first<{ id: number }>();
       state = { id: row!.id, calm: 0, peak: result.rpm };
-      if (settings.alerts.onSpike) {
-        await sendAlert(settings, `Spike on ${zone.name}: ${Math.round(result.rpm)} requests/min against a baseline of ${Math.round(expected ?? 0)}. Mode: ${zone.mode}.`);
-      }
+      started = true;
     } else if (state) {
       if (result.rpm > state.peak) {
         state.peak = result.rpm;
@@ -83,6 +82,7 @@ export async function tickZone(
       state.calm = spiking ? 0 : state.calm + 1;
       if (state.calm >= d.calmMinutesToEnd) {
         await env.DB.prepare("UPDATE spikes SET ended_at = ? WHERE id = ?").bind(now(), state.id).run();
+        if (settings.alerts.onSpikeEnd) await sendAlert(env, settings, await spikeEndedAlert(env, zone, state.id));
         state = null;
       }
     }
@@ -98,6 +98,10 @@ export async function tickZone(
     }
 
     if (spiking && state) await handleSpike(env, zone, settings, result, expected, state.id, jevCred);
+    // Sent after the first round of judging, so the alert can say what the spike is made of.
+    if (started && state && settings.alerts.onSpike) {
+      await sendAlert(env, settings, await spikeStartedAlert(env, zone, state.id, result.rpm, expected));
+    }
 
     await env.DB.prepare("UPDATE zones SET last_tick_at = ?, last_error = CASE WHEN last_error LIKE 'Rules:%' THEN last_error ELSE NULL END WHERE zone_id = ?")
       .bind(now(), zone.zone_id).run();
@@ -243,7 +247,8 @@ async function judgeAndAct(
     let reason = policy.reason;
 
     if (mechanism) {
-      if (zone.mode !== "enforce") reason += " Shadow mode: not applied.";
+      if (zone.mode === "watch") reason += " Watch mode: not applied.";
+      else if (zone.mode !== "enforce") reason += " Shadow mode: not applied.";
       else if (flags.killed) reason += " Kill switch is on: not applied.";
       else if (flags.paused || (zone.paused_until ?? 0) > now()) reason += " Enforcement paused by the hourly cap: not applied.";
       else if (await overHourlyCap(env, zone, settings)) reason += " Hourly action cap reached: enforcement paused for an hour.";
@@ -280,11 +285,12 @@ async function judgeAndAct(
 
   if (policy.grey && settings.alerts.onGrey) {
     const links = await reviewLinks(env, decisionId);
-    await sendAlert(
-      settings,
-      `Grey-zone verdict on ${zone.name}: ${displayKey(cluster)} at ${Math.round(cluster.features.rpm)} rpm. ${reason}` +
-        (links ? `\nKeep it: ${links.approve}\nUndo and always allow: ${links.reject}` : ""),
-    );
+    await sendAlert(env, settings, {
+      subject: `Review needed on ${zone.name}: ${displayKey(cluster)}`,
+      text:
+        `${displayKey(cluster)} at ${Math.round(cluster.features.rpm)} requests/min. ${reason}` +
+        (links ? `\n\nKeep it: ${links.approve}\nUndo and always allow: ${links.reject}` : ""),
+    });
   }
 }
 
@@ -295,9 +301,69 @@ async function overHourlyCap(env: Env, zone: ZoneRow, settings: Settings): Promi
   await env.DB.prepare("UPDATE zones SET paused_until = ? WHERE zone_id = ?").bind(now() + 3600, zone.zone_id).run();
   zone.paused_until = now() + 3600;
   if (settings.alerts.onPause) {
-    await sendAlert(settings, `Spikeward paused enforcement on ${zone.name} for an hour: ${settings.policy.maxActionsPerHour} new actions in the last hour. Review the Decisions screen.`);
+    await sendAlert(env, settings, {
+      subject: `Spikeward paused enforcement on ${zone.name}`,
+      text: `${settings.policy.maxActionsPerHour} new actions in the last hour hit the cap, so enforcement is paused for an hour. Review the Decisions screen.`,
+    });
   }
   return true;
+}
+
+const DONE: Record<string, string> = { block: "Blocked", managed_challenge: "Challenged", rate_limit: "Rate limited" };
+const WOULD: Record<string, string> = { block: "Would block", managed_challenge: "Would challenge", rate_limit: "Would rate limit" };
+
+function outcome(action: string, applied: number): string {
+  if (action === "allow") return "Left alone";
+  if (action === "observe") return "Watching";
+  return applied ? DONE[action]! : WOULD[action]!;
+}
+
+async function spikeStartedAlert(env: Env, zone: ZoneRow, spikeId: number, rpm: number, expected: number | null): Promise<Alert> {
+  const { results } = await env.DB.prepare(
+    "SELECT cluster_key, action, applied, jev_answers, features, source FROM decisions WHERE spike_id = ? ORDER BY id",
+  ).bind(spikeId).all<{ cluster_key: string; action: string; applied: number; jev_answers: string | null; features: string; source: string }>();
+  const ratio = expected ? ` (${Math.round(rpm / expected)}x normal)` : "";
+  const lines = results.map((r) => {
+    const f = JSON.parse(r.features).cluster ?? {};
+    let jev = "no Jev verdict";
+    if (r.jev_answers) {
+      const a = JSON.parse(r.jev_answers);
+      jev = `automated ${Math.round((a.is_automated?.noul ?? 0) * 100)}%, likely ${String(a.intent?.choice ?? "unknown").replace(/_/g, " ")}`;
+    }
+    return `- ${r.cluster_key}: ${Math.round(f.rpm ?? 0)} req/min, ${Math.round((f.share_of_traffic ?? 0) * 100)}% of traffic. ${jev}. ${outcome(r.action, r.applied)}.`;
+  });
+  const mode =
+    zone.mode === "watch" ? "Watch mode: Spikeward changes nothing on Cloudflare." :
+    zone.mode === "shadow" ? "Shadow mode: nothing was applied." : "Enforce mode.";
+  const link = await appLink(env, "/decisions");
+  return {
+    subject: `Traffic spike on ${zone.name}: ${Math.round(rpm).toLocaleString("en-US")} requests/min${ratio}`,
+    text: [
+      `${zone.name} is getting ${Math.round(rpm).toLocaleString("en-US")} requests per minute, against a normal ${Math.round(expected ?? 0).toLocaleString("en-US")}. ${mode}`,
+      "",
+      results.length ? "What it's made of:" : "No single source stands out yet: the traffic is spread thinly across many visitors.",
+      ...lines,
+      ...(link ? ["", `Details: ${link}`] : []),
+    ].join("\n"),
+  };
+}
+
+async function spikeEndedAlert(env: Env, zone: ZoneRow, spikeId: number): Promise<Alert> {
+  const spike = await env.DB.prepare("SELECT started_at, ended_at, peak_rpm, baseline_rpm FROM spikes WHERE id = ?").bind(spikeId)
+    .first<{ started_at: number; ended_at: number; peak_rpm: number; baseline_rpm: number }>();
+  const { results } = await env.DB.prepare("SELECT action, applied, COUNT(*) AS n FROM decisions WHERE spike_id = ? GROUP BY action, applied")
+    .bind(spikeId).all<{ action: string; applied: number; n: number }>();
+  const minutes = spike ? Math.max(1, Math.round((spike.ended_at - spike.started_at) / 60)) : 0;
+  const summary = results.map((r) => `${outcome(r.action, r.applied)}: ${r.n}`).join(", ");
+  const link = await appLink(env, "/decisions");
+  return {
+    subject: `Spike over on ${zone.name}`,
+    text: [
+      `Traffic on ${zone.name} is back to normal after about ${minutes} min. Peak: ${Math.round(spike?.peak_rpm ?? 0).toLocaleString("en-US")} requests/min, against a normal ${Math.round(spike?.baseline_rpm ?? 0).toLocaleString("en-US")}.`,
+      summary ? `Clusters judged: ${summary}.` : "No clusters were judged.",
+      ...(link ? ["", `Details: ${link}`] : []),
+    ].join("\n"),
+  };
 }
 
 /** What people see in the app. The exact target stays in `target`. */

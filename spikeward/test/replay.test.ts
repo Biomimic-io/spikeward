@@ -30,6 +30,7 @@ function fakeWorld() {
   let fields = ["clientIP", "clientCountryName", "userAgent", "clientRequestPath", "clientRequestHTTPMethodName", "edgeResponseStatus",
     "edgeResponseContentTypeName", "verifiedBotCategory", "securityAction", "clientAsn", "clientASNDescription", "clientRequestQuery", "requestSource"];
   let seq = 0;
+  let scale = 1;
   const ok = (result: unknown, extra: object = {}) => Response.json({ success: true, errors: [], result, ...extra });
   const notFound = () => Response.json({ success: false, errors: [{ code: 10003, message: "not found" }] }, { status: 404 });
 
@@ -61,8 +62,9 @@ function fakeWorld() {
       // Like Cloudflare, only return the dimensions that were asked for.
       const asked = new Set(query.split("dimensions {").pop()!.split("}")[0]!.trim().split(/\s+/));
       const z = fixture.data.viewer.zones[0]!;
-      const groups = z.groups.map((g) => ({ count: g.count, dimensions: Object.fromEntries(Object.entries(g.dimensions).filter(([k]) => asked.has(k))) }));
-      return Response.json({ data: { viewer: { zones: [{ totals: z.totals, groups }] } }, errors: null });
+      const totals = z.totals.map((t) => ({ ...t, count: Math.round(t.count * scale) }));
+      const groups = z.groups.map((g) => ({ count: Math.max(1, Math.round(g.count * scale)), dimensions: Object.fromEntries(Object.entries(g.dimensions).filter(([k]) => asked.has(k))) }));
+      return Response.json({ data: { viewer: { zones: [{ totals, groups }] } }, errors: null });
     }
     if (path === `/zones/${ZONE}`) return ok({ id: ZONE, name: "example.com", account: { id: ACCOUNT, name: "Acct" }, plan: { legacy_id: "pro", name: "Pro" } });
     if (path === `/accounts/${ACCOUNT}/rules/lists`) {
@@ -110,7 +112,8 @@ function fakeWorld() {
 
   const rule = (ref: string) => rulesets.get("http_request_firewall_custom")?.rules.find((r) => r.ref === ref);
   const setFields = (f: string[]) => (fields = f);
-  return { handler, lists, rulesets, jevBodies, graphqlQueries, alerts, rule, setFields };
+  const setTraffic = (s: number) => (scale = s);
+  return { handler, lists, rulesets, jevBodies, graphqlQueries, alerts, rule, setFields, setTraffic };
 }
 
 /** A stand-in for Jev that answers from the same features the real model sees. */
@@ -136,7 +139,7 @@ function fakeJev(body: { state: { cluster: Record<string, any> } }) {
 
 let world: ReturnType<typeof fakeWorld>;
 
-async function setup(mode: "shadow" | "enforce", withJev = true) {
+async function setup(mode: "watch" | "shadow" | "enforce", withJev = true) {
   await migrate(env);
   for (const t of ["zones", "decisions", "actions", "spikes", "allowlist", "settings", "credentials", "usage", "users"]) {
     await env.DB.prepare(`DELETE FROM ${t}`).run();
@@ -154,14 +157,18 @@ async function setup(mode: "shadow" | "enforce", withJev = true) {
   await env.KV.put(`baseline:${ZONE}:all`, JSON.stringify({ v: 350, n: 50 }));
 
   const cf = new Cloudflare("cf-test-token");
-  await provisionZone(env, cf, (await zoneRow())!);
+  if (mode !== "watch") await provisionZone(env, cf, (await zoneRow())!);
   return cf;
 }
 
 const zoneRow = () => env.DB.prepare("SELECT * FROM zones WHERE zone_id = ?").bind(ZONE).first<ZoneRow>();
 
+const emails: { to: unknown; from: unknown; subject: string; text: string }[] = [];
+// The Email Routing binding, faked so tests can read what would be sent.
+const envWithEmail = () => ({ ...env, EMAIL: { send: async (m: any) => { emails.push(m); return { messageId: "m1" }; } } }) as unknown as Env;
+
 async function tick(cf: Cloudflare, at = AT) {
-  await tickZone(env, cf, (await zoneRow())!, await loadCredential(env, "jev"), at);
+  await tickZone(envWithEmail(), cf, (await zoneRow())!, await loadCredential(env, "jev"), at);
   await sync(env);
 }
 
@@ -173,6 +180,7 @@ async function decisions() {
 }
 
 beforeEach(() => {
+  emails.length = 0;
   world = fakeWorld();
   vi.stubGlobal("fetch", world.handler);
 });
@@ -200,7 +208,7 @@ describe("replay: synthetic mixed spike", () => {
     expect(world.rule("spikeward_block")).toMatchObject({ enabled: true, action: "block", expression: "(ip.src in $spikeward_blocks)" });
     expect(world.rule("spikeward_challenge")).toMatchObject({ enabled: true, action: "managed_challenge", expression: "(ip.src.asnum in {14061})" });
 
-    expect(world.alerts.some((a) => a.startsWith("Spike on example.com"))).toBe(true);
+    expect(world.alerts.some((a) => a.startsWith("*Traffic spike on example.com: 4,200 requests/min"))).toBe(true);
   });
 
   it("never sends raw IPs or attack strings to Jev", async () => {
@@ -296,6 +304,38 @@ describe("replay: synthetic mixed spike", () => {
     const ua = ds.find((d) => d.cluster_kind === "ua")!;
     expect(ua.action).toBe("managed_challenge");
     expect(world.rule("spikeward_challenge")!.expression).toMatch(/^\(http\.user_agent eq "Mozilla\/5\.0 \(Windows/);
+  });
+
+  it("watch mode: never touches Cloudflare's firewall, and emails what it saw", async () => {
+    const cf = await setup("watch");
+    await saveSettings(env, "", { alerts: { emailTo: "owner@example.com", emailFrom: "spikeward@example.com" } });
+    await tick(cf);
+
+    expect(world.rulesets.size).toBe(0);
+    expect(world.lists).toHaveLength(0);
+    const ds = await decisions();
+    expect(ds.find((d) => d.target === "203.0.113.50")).toMatchObject({ action: "block", applied: 0 });
+    expect(ds.every((d) => d.applied === 0 && (d.action === "allow" || d.reason.includes("Watch mode")))).toBe(true);
+
+    expect(emails).toHaveLength(1);
+    const mail = emails[0]!;
+    expect(mail.to).toBe("owner@example.com");
+    expect(mail.subject).toBe("Traffic spike on example.com: 4,200 requests/min (12x normal)");
+    expect(mail.text).toContain("Watch mode: Spikeward changes nothing on Cloudflare.");
+    expect(mail.text).toContain("ip:203.0.113.50: 750 req/min, 18% of traffic. automated 97%, likely credential stuffing. Would block.");
+    expect(mail.text).toContain("asn:14061 (DIGITALOCEAN-ASN)");
+    expect(mail.text).toContain("Details: https://spikeward.example/decisions");
+  });
+
+  it("emails once when the spike ends, with a summary", async () => {
+    const cf = await setup("watch");
+    await saveSettings(env, "", { alerts: { emailTo: "owner@example.com", emailFrom: "spikeward@example.com" }, detection: { calmMinutesToEnd: 1 } });
+    await tick(cf);
+    world.setTraffic(0.05);
+    await tick(cf, new Date(AT.getTime() + 60_000));
+    expect(emails.map((m) => m.subject)).toEqual(["Traffic spike on example.com: 4,200 requests/min (12x normal)", "Spike over on example.com"]);
+    expect(emails[1]!.text).toMatch(/Peak: 4,200 requests\/min, against a normal 350\./);
+    expect(emails[1]!.text).toContain("Would block: 2");
   });
 
   it("leaves the zone's own rules alone", async () => {

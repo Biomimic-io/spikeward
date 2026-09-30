@@ -73,11 +73,14 @@ export const SPECS: Record<"detection" | "policy" | "jev" | "alerts", { title: s
   },
   alerts: {
     title: "Alerts",
-    lede: "Send a message to Slack, or any webhook, when something needs your attention. Grey-zone alerts include one-click approve and reject links.",
+    lede: "Get an email, a Slack or Discord message, or both when something needs your attention. Grey-zone alerts include one-click approve and reject links.",
     save: "Save alert settings",
     fields: [
-      { key: "webhookUrl", label: "Webhook URL", kind: "url", wide: true, help: "A Slack incoming webhook or any URL that accepts JSON. Leave empty to turn alerts off." },
-      { key: "onSpike", label: "Alert when a spike starts", kind: "bool", help: "One message per spike, with the zone and peak rate." },
+      { key: "emailTo", label: "Email alerts to", kind: "text", help: "Must be a verified destination address in Cloudflare Email Routing (free). Leave empty for no email." },
+      { key: "emailFrom", label: "Send email from", kind: "text", help: "Any address on a domain in this Cloudflare account with Email Routing turned on, such as spikeward@yourdomain.com." },
+      { key: "webhookUrl", label: "Webhook URL", kind: "url", wide: true, help: "A Slack or Discord incoming webhook, or any URL that accepts JSON. Leave empty for no webhook." },
+      { key: "onSpike", label: "Alert when a spike starts", kind: "bool", help: "One message per spike: how big it is, what it's made of, and what Spikeward did or would do." },
+      { key: "onSpikeEnd", label: "Alert when a spike ends", kind: "bool", help: "A short summary once traffic is back to normal." },
       { key: "onGrey", label: "Alert on grey-zone verdicts", kind: "bool", help: "Jev was unsure, so Spikeward challenged and wants your review." },
       { key: "onPause", label: "Alert when a zone pauses", kind: "bool", help: "A zone hit its new-actions-per-hour limit and stopped creating actions." },
     ],

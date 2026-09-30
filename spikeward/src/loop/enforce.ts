@@ -161,7 +161,8 @@ export async function sync(env: Env): Promise<void> {
     const cf = await cloudflareClient(env);
     if (!cf) return;
     const killed = (await getMeta(env, "kill")) === "1";
-    const zones = (await listZones(env)).filter((z) => z.mode !== "off");
+    // Watch zones never get rules; off zones keep theirs disabled.
+    const zones = (await listZones(env)).filter((z) => z.mode === "shadow" || z.mode === "enforce" || (z.mode === "off" && parseRuleIds(z).block));
     const actions = await activeActions(env);
     const enforcing = new Set(zones.filter((z) => z.mode === "enforce" && !killed).map((z) => z.zone_id));
 

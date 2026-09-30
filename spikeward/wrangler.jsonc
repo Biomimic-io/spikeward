@@ -13,6 +13,8 @@
   },
   "d1_databases": [{ "binding": "DB", "database_name": "spikeward" }],
   "kv_namespaces": [{ "binding": "KV" }],
+  // Email alerts go to an address verified in your account's Email Routing (free on every plan).
+  "send_email": [{ "name": "EMAIL" }],
   "triggers": { "crons": ["* * * * *"] },
   "observability": { "enabled": true }
 }

@@ -32,7 +32,7 @@ export function Wizard({ state, refresh }: { state: AppState; refresh: () => Pro
           <div class="stack">
             <div>
               <h1>Choose zones to protect</h1>
-              <p class="lede">Add at least one zone. New zones start in shadow mode: for the first 24 hours Spikeward logs what it would do and applies nothing. Review the Decisions screen, then switch the zone to enforce.</p>
+              <p class="lede">Add at least one zone. In shadow mode, Spikeward logs what it would do and applies nothing until you switch to enforce. In watch mode, it only emails you about spikes and never touches the zone's firewall.</p>
             </div>
             <ZonePicker managedIds={[]} initial={zones} onAdded={() => setCount((n) => n + 1)} />
             <div class="form-foot">
