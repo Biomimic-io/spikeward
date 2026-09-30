@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Spikeward: stop bot spikes on Cloudflare</title>
+  <meta name="description" content="Open-source bot-spike mitigation for Cloudflare. Spikeward watches your traffic once a minute, asks Jev to judge suspicious clusters, and writes short-lived WAF challenges and blocks. Zero added latency.">
+  <meta property="og:title" content="Spikeward: stop bot spikes on Cloudflare">
+  <meta property="og:description" content="Open-source, one-click deploy, zero added latency. AI judges the clusters, not the requests.">
+  <meta property="og:type" content="website">
+  <meta name="theme-color" content="#F3F6F8">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script src="config.js"></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="/" aria-label="Spikeward home">
+        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M2 22 L9 21 L13 6 L17 21 L30 21" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/><path d="M2 27 H30" stroke="var(--ward)" stroke-width="3" stroke-linecap="round"/></svg>
+        Spikeward
+      </a>
+      <nav class="nav" aria-label="Primary">
+        <a href="#how">How it works</a>
+        <a href="#safety">Safety</a>
+        <a href="#plans">Plans</a>
+        <a href="#cost">Cost</a>
+        <a href="#faq">FAQ</a>
+        <a class="nav-gh" data-repo-link href="#">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- Hero: the spike, and the ward that stops it -->
+    <section class="hero">
+      <div class="wrap">
+        <p class="status"><span class="status-dot" aria-hidden="true"></span>In development. Open source under Apache-2.0.</p>
+        <h1>When bots spike your site, Spikeward judges the clusters and shuts them out in minutes.</h1>
+        <p class="lede">An open-source Cloudflare Worker that watches your zone once a minute, asks Jev which groups of traffic are automated, and writes short-lived WAF challenges and blocks. Real visitors never wait on it.</p>
+        <div class="cta-row">
+          <a class="deploy" data-deploy-link href="#" hidden>
+            <img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare" width="175" height="32">
+          </a>
+          <a class="btn-secondary" data-repo-link href="#">Read the source</a>
+        </div>
+      </div>
+
+      <figure class="spike" aria-labelledby="spike-cap">
+        <div class="wrap">
+          <div class="chart">
+          <svg class="spike-svg" viewBox="0 0 1200 340" preserveAspectRatio="none" role="img" aria-label="Requests per minute over two hours. Traffic sits near a baseline of 350, spikes to 4,200 when a scraper on one hosting network arrives, and falls back to baseline two minutes after Spikeward challenges it.">
+            <defs>
+              <pattern id="grid" width="50" height="34" patternUnits="userSpaceOnUse">
+                <path d="M50 0 V34 M0 34 H50" fill="none" stroke="var(--grid)" stroke-width="1"/>
+              </pattern>
+              <linearGradient id="spikeFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="var(--spike)" stop-opacity=".22"/>
+                <stop offset="1" stop-color="var(--spike)" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <rect width="1200" height="340" fill="url(#grid)"/>
+            <!-- judged window -->
+            <rect class="judge-band" x="600" y="0" width="60" height="340"/>
+            <!-- trigger line: 3x baseline -->
+            <line class="trigger" x1="0" y1="170" x2="1200" y2="170"/>
+            <path class="trace-fill" d="M0,247.5 L10,247.1 L20,256.0 L30,249.8 L40,257.9 L50,257.0 L60,253.9 L70,261.1 L80,255.2 L90,261.0 L100,255.9 L110,255.9 L120,259.9 L130,264.5 L140,253.4 L150,253.3 L160,257.3 L170,259.9 L180,252.8 L190,248.3 L200,254.4 L210,239.4 L220,249.0 L230,239.4 L240,235.9 L250,234.4 L260,236.2 L270,242.7 L280,233.5 L290,239.2 L300,240.4 L310,237.4 L320,240.9 L330,235.4 L340,236.9 L350,240.7 L360,249.2 L370,247.6 L380,248.0 L390,253.8 L400,253.8 L410,253.5 L420,262.0 L430,262.1 L440,256.8 L450,262.3 L460,262.1 L470,267.2 L480,265.1 L490,258.4 L500,267.4 L510,254.2 L520,257.1 L530,260.3 L540,250.1 L550,252.9 L560,242.6 L570,231.4 L580,213.6 L590,185.3 L600,163.1 L610,138.8 L620,115.2 L630,87.4 L640,70.8 L650,60.7 L660,29.4 L670,55.1 L680,91.2 L690,108.0 L700,146.5 L710,169.5 L720,201.5 L730,214.0 L740,225.6 L750,231.7 L760,239.3 L770,238.1 L780,246.9 L790,252.8 L800,263.7 L810,266.1 L820,255.8 L830,256.9 L840,258.1 L850,258.3 L860,261.6 L870,262.5 L880,257.0 L890,252.3 L900,256.7 L910,254.4 L920,255.3 L930,258.8 L940,253.2 L950,248.7 L960,248.2 L970,247.2 L980,236.7 L990,247.1 L1000,244.1 L1010,244.4 L1020,242.6 L1030,236.6 L1040,236.6 L1050,232.7 L1060,240.8 L1070,233.7 L1080,234.9 L1090,238.4 L1100,239.3 L1110,243.7 L1120,241.6 L1130,242.8 L1140,246.9 L1150,248.2 L1160,253.7 L1170,250.6 L1180,264.0 L1190,261.6 L1200,256.0 L1200,340 L0,340 Z"/>
+            <path class="trace" pathLength="1" d="M0,247.5 L10,247.1 L20,256.0 L30,249.8 L40,257.9 L50,257.0 L60,253.9 L70,261.1 L80,255.2 L90,261.0 L100,255.9 L110,255.9 L120,259.9 L130,264.5 L140,253.4 L150,253.3 L160,257.3 L170,259.9 L180,252.8 L190,248.3 L200,254.4 L210,239.4 L220,249.0 L230,239.4 L240,235.9 L250,234.4 L260,236.2 L270,242.7 L280,233.5 L290,239.2 L300,240.4 L310,237.4 L320,240.9 L330,235.4 L340,236.9 L350,240.7 L360,249.2 L370,247.6 L380,248.0 L390,253.8 L400,253.8 L410,253.5 L420,262.0 L430,262.1 L440,256.8 L450,262.3 L460,262.1 L470,267.2 L480,265.1 L490,258.4 L500,267.4 L510,254.2 L520,257.1 L530,260.3 L540,250.1 L550,252.9 L560,242.6 L570,231.4 L580,213.6 L590,185.3 L600,163.1 L610,138.8 L620,115.2 L630,87.4 L640,70.8 L650,60.7 L660,29.4 L670,55.1 L680,91.2 L690,108.0 L700,146.5 L710,169.5 L720,201.5 L730,214.0 L740,225.6 L750,231.7 L760,239.3 L770,238.1 L780,246.9 L790,252.8 L800,263.7 L810,266.1 L820,255.8 L830,256.9 L840,258.1 L850,258.3 L860,261.6 L870,262.5 L880,257.0 L890,252.3 L900,256.7 L910,254.4 L920,255.3 L930,258.8 L940,253.2 L950,248.7 L960,248.2 L970,247.2 L980,236.7 L990,247.1 L1000,244.1 L1010,244.4 L1020,242.6 L1030,236.6 L1040,236.6 L1050,232.7 L1060,240.8 L1070,233.7 L1080,234.9 L1090,238.4 L1100,239.3 L1110,243.7 L1120,241.6 L1130,242.8 L1140,246.9 L1150,248.2 L1160,253.7 L1170,250.6 L1180,264.0 L1190,261.6 L1200,256.0"/>
+            <!-- ward: the challenge rule going live -->
+            <line class="ward" x1="660" y1="0" x2="660" y2="340"/>
+            <circle class="peak" cx="660" cy="29.4" r="6"/>
+          </svg>
+          <ol class="spike-notes" aria-hidden="true">
+            <li class="note note-trigger" style="--x:50%">Spike detected: 4,200 rpm against a 350 baseline</li>
+            <li class="note note-ward" style="--x:55%">12 clusters judged, 3 challenged, 1 blocked</li>
+          </ol>
+          </div>
+          <figcaption id="spike-cap" class="spike-cap">A replayed scraper spike. Traffic crosses the trigger line, Spikeward sends twelve clusters to Jev, and a managed challenge on one hosting network brings it back to baseline.</figcaption>
+        </div>
+      </figure>
+    </section>
+
+    <!-- The core idea -->
+    <section class="section idea">
+      <div class="wrap idea-grid">
+        <div>
+          <h2>AI judges the clusters, not the requests.</h2>
+          <p>A spike can be millions of requests. Scoring each one with a model would add latency for every visitor and cost a fortune. Spikeward runs beside Cloudflare instead of in front of it: the edge keeps doing its per-request work, and once a minute Spikeward reads your analytics, groups the spike, and asks Jev about the handful of groups that look wrong.</p>
+          <p>Jev calls scale with the number of suspicious clusters, usually tens per spike, not with your traffic.</p>
+        </div>
+        <div class="funnel" role="img" aria-label="A spike of about two million requests becomes one detected spike, about twenty clusters after filtering, and about twenty Jev calls.">
+          <div class="funnel-row" style="--w:100%"><strong>~2,000,000</strong><span>requests in the spike</span></div>
+          <div class="funnel-row" style="--w:62%"><strong>1</strong><span>spike detected</span></div>
+          <div class="funnel-row" style="--w:34%"><strong>5 to 30</strong><span>clusters after filtering</span></div>
+          <div class="funnel-row funnel-last" style="--w:20%"><strong>5 to 30</strong><span>Jev calls</span></div>
+          <p class="funnel-foot">Added latency for real visitors: none.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Pipeline: a real sequence, so it is numbered -->
+    <section class="section" id="how">
+      <div class="wrap">
+        <h2>What happens every minute</h2>
+        <p class="section-lede">A cron tick runs this loop for each zone you manage. Everything is configurable in the app and takes effect on the next tick.</p>
+        <ol class="pipeline">
+          <li><h3>Poll</h3><p>Read the last two minutes from Cloudflare's GraphQL Analytics API, grouped by IP, ASN, user agent, path, and status. Works on the Free plan with no Logpush.</p></li>
+          <li><h3>Baseline</h3><p>Compare against a rolling baseline for this hour of the week. A spike starts at 3x baseline and at least 500 requests per minute.</p></li>
+          <li><h3>Cluster</h3><p>Group the spike by IP, /24, ASN, user agent, and JA4 on Enterprise. Measure each group: rate, share of the spike, paths, error mix, asset ratio.</p></li>
+          <li><h3>Filter</h3><p>Drop your never-block list, verified bots, tiny clusters, and anything already handled.</p></li>
+          <li><h3>Sanitize</h3><p>Replace attack strings in paths with flags, so probes never reach the model and nothing identifying leaves your account.</p></li>
+          <li><h3>Judge</h3><p>One Jev call per cluster: is it automated, what does it want, how harmful is it. Verdicts are cached for the life of the action.</p></li>
+          <li><h3>Enforce</h3><p>Your policy thresholds pick the action. Spikeward writes it to rules it owns, with an expiry, and logs why.</p></li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- One decision, shown end to end -->
+    <section class="section decision-section">
+      <div class="wrap decision-grid">
+        <div>
+          <h2>Every decision shows its work.</h2>
+          <p>The Decisions screen records what Spikeward sent, what Jev answered, and what your policy did with it. The model's suggested action is advisory; your thresholds on probability and harm make the call, so you can tune behavior without rewriting prompts.</p>
+          <p>Add your own questions too. Ask "is this a partner integration?" and map the answer to allow.</p>
+        </div>
+        <article class="decision" aria-label="Example decision">
+          <header class="decision-head">
+            <div>
+              <p class="decision-key">asn:14061</p>
+              <p class="decision-meta">Hosting network, 180 IPs, 62% of the spike</p>
+            </div>
+            <span class="pill pill-challenge">Managed challenge</span>
+          </header>
+          <dl class="answers">
+            <div><dt>Automated</dt><dd><span class="bar" style="--v:.97"></span>0.97</dd></div>
+            <div><dt>Harm</dt><dd><span class="bar" style="--v:.64"></span>0.64</dd></div>
+            <div><dt>Intent</dt><dd class="intent">Scraper</dd></div>
+          </dl>
+          <p class="decision-why">Challenged, not blocked: a whole network can include real people, so broad keys only ever get a challenge.</p>
+          <footer class="decision-foot">
+            <span>Expires in 58 min</span>
+            <span class="decision-actions"><button type="button" class="linkish" data-undo>Undo</button><button type="button" class="linkish" data-undo>Always allow</button></span>
+          </footer>
+          <p class="decision-toast" role="status" aria-live="polite"></p>
+        </article>
+      </div>
+    </section>
+
+    <!-- Enforcement ladder -->
+    <section class="section" id="safety">
+      <div class="wrap">
+        <h2>Narrow when it's sure. Gentle when it isn't.</h2>
+        <p class="section-lede">Spikeward only touches rules and lists it created, tagged <code>spikeward:</code>. It never edits your own rules. Hard blocks are reserved for single IPs above the block threshold.</p>
+        <div class="table-scroll">
+          <table class="ladder">
+            <thead><tr><th scope="col">What it targets</th><th scope="col">Default action</th><th scope="col">Default expiry</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">A single IP</th><td><span class="pill pill-block">Block</span> when confident, otherwise challenge</td><td>6 hours</td></tr>
+              <tr><th scope="row">A /24 or small IP range</th><td><span class="pill pill-challenge">Managed challenge</span></td><td>1 hour</td></tr>
+              <tr><th scope="row">A whole network (ASN)</th><td><span class="pill pill-challenge">Managed challenge</span>, never block</td><td>1 hour</td></tr>
+              <tr><th scope="row">A user agent</th><td><span class="pill pill-challenge">Managed challenge</span></td><td>1 hour</td></tr>
+              <tr><th scope="row">A TLS fingerprint (Enterprise)</th><td><span class="pill pill-rate">Rate limit</span></td><td>1 hour</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 class="rails-title">Safety rails, on by default</h3>
+        <ul class="rails">
+          <li><strong>Shadow mode first.</strong> New zones log what Spikeward would do for 24 hours. You review, then switch to enforce.</li>
+          <li><strong>Everything expires.</strong> Every block and challenge has a timer. Repeat offenders get double the time, up to 7 days.</li>
+          <li><strong>Grey-zone alerts.</strong> Verdicts between 0.70 and 0.95 only challenge, and send you approve and reject links in Slack or email.</li>
+          <li><strong>Rate cap.</strong> More than 50 new actions in an hour pauses enforcement and alerts you.</li>
+          <li><strong>Never-block list.</strong> IPs, networks, user agents, and paths you trust. Verified bots are always excluded.</li>
+          <li><strong>Kill switch.</strong> One button turns off every Spikeward rule on every zone.</li>
+          <li><strong>Self-cleaning.</strong> Each tick removes expired items and reconciles its records with Cloudflare, so a failed call never leaves an orphan block.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Setup: a real sequence -->
+    <section class="section setup">
+      <div class="wrap">
+        <h2>From button to protected in one sitting</h2>
+        <p class="section-lede">The Deploy to Cloudflare button forks the repo, creates the database and cache, and asks you for one secret. The rest happens in Spikeward's own setup screen.</p>
+        <ol class="steps">
+          <li><strong>Deploy.</strong> Click the button and paste a long random secret.</li>
+          <li><strong>Claim.</strong> Open your new app, enter the secret, and create an admin passkey.</li>
+          <li><strong>Connect Cloudflare.</strong> Paste a least-privilege API token. Spikeward refuses tokens with more access than it needs.</li>
+          <li><strong>Connect Jev.</strong> Paste a TypeSafe key, or route through OpenRouter or Vercel AI Gateway.</li>
+          <li><strong>Pick zones.</strong> Spikeward detects each zone's plan and shows what's available.</li>
+          <li><strong>Watch, then enforce.</strong> Review a day of shadow-mode decisions and flip the switch.</li>
+        </ol>
+        <div class="cta-row">
+          <a class="deploy" data-deploy-link href="#" hidden>
+            <img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare" width="175" height="32" loading="lazy">
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Plans -->
+    <section class="section" id="plans">
+      <div class="wrap">
+        <h2>Works on the Free plan</h2>
+        <p class="section-lede">The core loop runs on every Cloudflare plan. Higher plans add sharper signals. The app hides what your zone can't use.</p>
+        <div class="table-scroll">
+          <table class="plans">
+            <thead><tr><th scope="col">Capability</th><th scope="col">Free</th><th scope="col">Pro</th><th scope="col">Business</th><th scope="col">Enterprise</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">Spike detection and clustering</th><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+              <tr><th scope="row">IP blocks and managed challenges</th><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+              <tr><th scope="row">Custom IP lists per account</th><td>1</td><td>10</td><td>10</td><td>1,000</td></tr>
+              <tr><th scope="row">Bot score and JA4 as signals</th><td class="no">No</td><td class="no">No</td><td class="no">No</td><td class="yes">Yes, with Bot Management</td></tr>
+              <tr><th scope="row">Rate limits keyed on JA4</th><td class="no">No</td><td class="no">No</td><td class="no">No</td><td class="yes">Yes, with Bot Management</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="fine">Spikeward layers on top of Cloudflare Bot Management and Super Bot Fight Mode. It doesn't replace them.</p>
+      </div>
+    </section>
+
+    <!-- Cost -->
+    <section class="section cost" id="cost">
+      <div class="wrap cost-grid">
+        <div>
+          <h2>About $5 a month, plus cents</h2>
+          <p>Nothing runs per real request, so your bill follows spikes, not traffic. Workers Paid is recommended for CPU headroom; the database and cache stay inside free limits.</p>
+          <p>Daily call and spend caps bound the worst case. When a cap is hit, Spikeward falls back to rules-only decisions and tells you.</p>
+        </div>
+        <dl class="costs">
+          <div><dt>Workers Paid</dt><dd>$5 / month</dd></div>
+          <div><dt>D1 and KV</dt><dd>Free tier</dd></div>
+          <div><dt>Jev, a typical spike</dt><dd>~$0.03</dd></div>
+          <div><dt>Jev, a very bad day</dt><dd>~$2.50</dd></div>
+        </dl>
+      </div>
+    </section>
+
+    <!-- Privacy and security -->
+    <section class="section">
+      <div class="wrap two-col">
+        <div>
+          <h2>Your visitors stay anonymous</h2>
+          <p>Jev sees cluster features only: network, country, user-agent strings, path patterns, and rates. No raw IPs, cookies, or query values. Clusters are named with a salted hash.</p>
+        </div>
+        <div>
+          <h2>Your keys stay yours</h2>
+          <p>Spikeward runs in your Cloudflare account, not ours. Your API token and Jev key are encrypted in your own database and never appear in your fork, build logs, or environment. Put Cloudflare Access in front for single sign-on.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section class="section" id="faq">
+      <div class="wrap faq-wrap">
+        <h2>Questions</h2>
+        <details>
+          <summary>Does Spikeward slow down my site?</summary>
+          <p>No. It never sits in the request path. It reads analytics on a one-minute schedule and writes WAF rules, which Cloudflare's edge already evaluates.</p>
+        </details>
+        <details>
+          <summary>How fast does it react?</summary>
+          <p>Usually within one to two minutes of a spike starting. For very sharp bursts, pair it with a static rate limiting rule for the first minute.</p>
+        </details>
+        <details>
+          <summary>What if it challenges real people?</summary>
+          <p>Start in shadow mode and review a day of decisions first. Broad targets like whole networks only ever get a challenge, which real people pass. Every action expires, and you can undo any decision or mark it "always allow" in one click.</p>
+        </details>
+        <details>
+          <summary>What is Jev?</summary>
+          <p>Jev is a TypeSafe System One model that turns structured state into typed answers with probabilities, such as "is this automated: 0.97". Spikeward asks it a fixed set of questions about each cluster, and you can add your own.</p>
+        </details>
+        <details>
+          <summary>What if Jev is down or I hit my cap?</summary>
+          <p>Spikeward falls back to rules-only decisions based on rate and ratio thresholds, and alerts you. Cached verdicts keep working.</p>
+        </details>
+        <details>
+          <summary>Will it catch a slow, low-volume bot?</summary>
+          <p>Not by design. Spikeward targets spikes. Steady low-volume bots are better handled by Cloudflare's own bot tools.</p>
+        </details>
+        <details>
+          <summary>Is it really free?</summary>
+          <p>The code is Apache-2.0. You pay Cloudflare and your Jev provider directly, usually about $5 a month plus cents.</p>
+        </details>
+      </div>
+    </section>
+
+    <section class="section closing">
+      <div class="wrap">
+        <h2>Put a ward on your next spike.</h2>
+        <p>Spikeward is being built in the open. Star the repo to follow along; the Deploy to Cloudflare button appears here with the first release.</p>
+        <div class="cta-row">
+          <a class="deploy" data-deploy-link href="#" hidden>
+            <img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare" width="175" height="32" loading="lazy">
+          </a>
+          <a class="btn-secondary" data-repo-link href="#">Star on GitHub</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <div class="wrap foot-inner">
+      <p>Spikeward is open source under the Apache-2.0 license. Not affiliated with Cloudflare or TypeSafe.</p>
+      <p><a data-repo-link href="#">GitHub</a> <a href="https://habitnetworks.com/">Habit Networks</a></p>
+    </div>
+  </footer>
+</body>
+</html>

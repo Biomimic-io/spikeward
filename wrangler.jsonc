@@ -1,0 +1,9 @@
+// Marketing site: a static-assets Worker served at spikeward.habitnetworks.com.
+// Deploy from this folder: npx wrangler deploy
+// (The product Worker lives in spikeward/ and has its own config.)
+{
+  "name": "spikeward-site",
+  "compatibility_date": "2026-09-01",
+  "assets": { "directory": "./web" },
+  "routes": [{ "pattern": "spikeward.habitnetworks.com", "custom_domain": true }]
+}
