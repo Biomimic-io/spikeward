@@ -8,8 +8,9 @@ the request path, so real visitors see zero added latency.
 
 Website: https://spikeward.habitnetworks.com
 
-> Status: in development. The design is in [spikeward/docs/PLAN.md](spikeward/docs/PLAN.md).
-> The Deploy to Cloudflare button ships with the first release.
+> Status: v0.1, early. The design is in [spikeward/docs/PLAN.md](spikeward/docs/PLAN.md).
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Biomimic-io/spikeward/tree/main/spikeward)
 
 ## Layout
 
@@ -27,8 +28,7 @@ npx serve web        # preview locally
 npx wrangler deploy  # deploy (from the repo root)
 ```
 
-When `spikeward/` contains a deployable Worker, set `DEPLOY_READY: true` in
-`web/config.js` to show the Deploy to Cloudflare buttons.
+`DEPLOY_READY` in `web/config.js` controls whether the site shows the Deploy to Cloudflare buttons.
 
 ## License
 

@@ -23,6 +23,10 @@ copy). Then open your Worker's URL and follow the setup screen:
 4. **Pick zones.** Each starts in shadow mode: Spikeward logs what it would do and applies nothing.
 5. After a day of shadow decisions, review the Decisions screen and switch the zone to enforce.
 
+If the deploy form shows `access.api.error.conflict: a cloudflare connection already exists`,
+uncheck **Create private Git repository** and deploy again. This happens when your Cloudflare
+account already has a GitHub connection.
+
 We recommend putting [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/applications/)
 in front of the Worker's hostname as well as Spikeward's own login.
 
